@@ -439,7 +439,7 @@
           <p>Browse weekly work and standalone folders. Each linked folder opens its files on GitHub.</p>
           <div class="count" aria-live="polite">
             <strong id="linked-count">0</strong>
-            <span>of 8 folders linked</span>
+            <span id="total-folders-label">of 9 folders linked</span>
           </div>
         </aside>
       </section>
@@ -462,9 +462,18 @@
           <div class="folder-grid" id="weekly-folders"></div>
         </section>
 
-        <section class="folder-section" aria-labelledby="collections-title">
+        <section class="folder-section" aria-labelledby="proposal-title">
           <div class="section-heading">
             <span class="section-index">02</span>
+            <h2 id="proposal-title">Proposal</h2>
+            <p>Project proposal</p>
+          </div>
+          <div class="folder-grid" id="proposal-folders"></div>
+        </section>
+
+        <section class="folder-section" aria-labelledby="collections-title">
+          <div class="section-heading">
+            <span class="section-index">03</span>
             <h2 id="collections-title">Other folders</h2>
             <p>Standalone collections</p>
           </div>
@@ -486,6 +495,7 @@
     const repoBranch = "main";
     const repoBaseUrl = `https://github.com/${repoOwner}/${repoName}`;
     const repoSiteUrl = `https://aswin-wq.github.io/${repoName}/`;
+    const proposalUrl = "https://sushant0101n-gif.github.io/team-4-project/proposal/index.html";
 
     const fallbackFolders = {
       weekly: [
@@ -594,6 +604,7 @@
     function updateCount(allFolders) {
       const linkedCount = allFolders.filter((folder) => folder.url).length;
       document.querySelector("#linked-count").textContent = linkedCount;
+      document.querySelector("#total-folders-label").textContent = `of ${allFolders.length} folders linked`;
     }
 
     function renderWeekPanels(weekly, tasksByFolder) {
@@ -710,9 +721,16 @@
 
     async function initFolders() {
       const { weekly, other, tasksByFolder } = await loadRepositoryFolders();
-      const allFolders = [...weekly, ...other];
+      const proposalFolder = {
+        name: "Proposal",
+        path: "proposal",
+        url: proposalUrl,
+        siteUrl: proposalUrl
+      };
+      const allFolders = [...weekly, ...other, proposalFolder];
 
       renderWeekPanels(weekly, tasksByFolder);
+      renderFolders([proposalFolder], "proposal-folders", "proposal");
       renderFolders(other, "other-folders", "folder");
       updateCount(allFolders);
 
