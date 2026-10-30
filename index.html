@@ -244,6 +244,19 @@
       transform: translateY(-2px);
     }
 
+    .week-panel summary {
+      list-style: none;
+      cursor: pointer;
+    }
+
+    .week-panel summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .week-panel[open] .toggle-arrow {
+      transform: rotate(180deg);
+    }
+
     .folder-card {
       min-height: 168px;
       display: flex;
@@ -304,6 +317,7 @@
       gap: 10px;
       text-decoration: none;
       color: inherit;
+      padding: 0;
     }
 
     .week-title {
@@ -317,6 +331,13 @@
       font: 10px var(--mono);
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }
+
+    .toggle-arrow {
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1;
+      transition: transform 160ms ease;
     }
 
     .task-list {
@@ -471,21 +492,32 @@
         { name: "Week 01", path: "week1", url: `${repoBaseUrl}/tree/${repoBranch}/week1`, siteUrl: `${repoSiteUrl}week1/` },
         { name: "Week 02", path: "week2", url: `${repoBaseUrl}/tree/${repoBranch}/week2`, siteUrl: `${repoSiteUrl}week2/` },
         { name: "Week 03", path: "week3", url: `${repoBaseUrl}/tree/${repoBranch}/week3`, siteUrl: `${repoSiteUrl}week3/` },
-        { name: "Week 04", path: "week4", url: `${repoBaseUrl}/tree/${repoBranch}/week4`, siteUrl: `${repoSiteUrl}week4/` }
+        { name: "Week 03.2", path: "week3_2", url: `${repoBaseUrl}/tree/${repoBranch}/week3_2`, siteUrl: `${repoSiteUrl}week3_2/` },
+        { name: "Week 04", path: "week4", url: `${repoBaseUrl}/tree/${repoBranch}/week4`, siteUrl: `${repoSiteUrl}week4/` },
+        { name: "Week 08.1", path: "week8_1", url: `${repoBaseUrl}/tree/${repoBranch}/week8_1`, siteUrl: `${repoSiteUrl}week8_1/` },
+        { name: "Week 08.2", path: "week8_2", url: `${repoBaseUrl}/tree/${repoBranch}/week8_2`, siteUrl: `${repoSiteUrl}week8_2/` }
       ],
       other: []
     };
 
     function formatFolderName(name) {
-      const cleaned = name.replace(/[-_]+/g, " ").trim();
-      return cleaned.replace(/\b\w/g, (char) => char.toUpperCase());
+      const trimmed = String(name).trim();
+      const normalized = trimmed.replace(/^week\s*/i, "Week ");
+      return normalized.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+    }
+
+    function getWeekSortKey(name) {
+      const match = String(name).match(/week\s*(\d+)(?:\s*[_-]?\s*(\d+))?/i);
+      const primary = Number(match?.[1] ?? Number.MAX_SAFE_INTEGER);
+      const secondary = Number(match?.[2] ?? 0);
+      return [primary, secondary];
     }
 
     function sortFolderNames(a, b) {
-      const aNum = Number(String(a.name).match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER);
-      const bNum = Number(String(b.name).match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER);
-      if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) return aNum - bNum;
-      return a.name.localeCompare(b.name);
+      const aKey = getWeekSortKey(a.name);
+      const bKey = getWeekSortKey(b.name);
+      if (aKey[0] !== bKey[0]) return aKey[0] - bKey[0];
+      return aKey[1] - bKey[1];
     }
 
     function toFolderEntry(name) {
@@ -528,14 +560,14 @@
         }
 
         const weekly = topLevelFolders
-          .filter((folder) => /^week\d+$/i.test(folder))
+          .filter((folder) => /^week\d+(?:[_-]\d+)*$/i.test(folder))
           .map(toFolderEntry)
           .sort(sortFolderNames);
 
         const other = topLevelFolders
-          .filter((folder) => !/^week\d+$/i.test(folder))
+          .filter((folder) => !/^week\d+(?:[_-]\d+)*$/i.test(folder))
           .map(toFolderEntry)
-          .sort(sortFolderNames);
+          .sort((a, b) => a.name.localeCompare(b.name));
 
         const tasksByFolder = {};
         for (const folder of weekly) {
@@ -567,19 +599,14 @@
     function renderWeekPanels(weekly, tasksByFolder) {
       const container = document.getElementById("weekly-folders");
       container.replaceChildren(...weekly.map((folder) => {
-        const panel = document.createElement("article");
+        const panel = document.createElement("details");
         panel.className = "week-panel";
         panel.dataset.search = `${folder.name} ${folder.path} ${(tasksByFolder[folder.path] || []).map((task) => task.label).join(" ")}`.toLowerCase();
+        panel.open = true;
 
-        const tasks = tasksByFolder[folder.path] || [];
-        const primaryTaskUrl = tasks[0]?.url || folder.siteUrl || folder.url;
-
-        const header = document.createElement("a");
-        header.className = "week-header";
-        header.href = primaryTaskUrl;
-        header.target = "_blank";
-        header.rel = "noopener noreferrer";
-        header.setAttribute("aria-label", `${folder.name}, open this week folder`);
+        const summary = document.createElement("summary");
+        summary.className = "week-header";
+        summary.setAttribute("aria-label", `${folder.name}, toggle tasks`);
 
         const icon = document.createElement("span");
         icon.className = "folder-icon";
@@ -590,12 +617,20 @@
         const title = document.createElement("h3");
         title.className = "week-title";
         title.textContent = folder.name;
+
         const count = document.createElement("span");
         count.className = "week-count";
-        count.textContent = `${tasks.length} tasks`;
-        titleWrap.append(title);
-        header.append(icon, titleWrap, count);
+        count.textContent = `${(tasksByFolder[folder.path] || []).length} tasks`;
 
+        const toggle = document.createElement("span");
+        toggle.className = "toggle-arrow";
+        toggle.setAttribute("aria-hidden", "true");
+        toggle.textContent = "⌃";
+
+        titleWrap.append(title);
+        summary.append(icon, titleWrap, count, toggle);
+
+        const tasks = tasksByFolder[folder.path] || [];
         const taskList = document.createElement("ul");
         taskList.className = "task-list";
 
@@ -623,7 +658,7 @@
           }
         }
 
-        panel.append(header, taskList);
+        panel.append(summary, taskList);
         return panel;
       }));
     }
