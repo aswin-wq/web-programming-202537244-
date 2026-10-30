@@ -228,6 +228,22 @@
       border-left: 1px solid var(--line);
     }
 
+    .week-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 168px;
+      padding: 17px 17px 14px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.72);
+      transition: background-color 160ms ease, transform 160ms ease;
+    }
+
+    .week-panel:hover {
+      background: var(--green);
+      transform: translateY(-2px);
+    }
+
     .folder-card {
       min-height: 168px;
       display: flex;
@@ -281,6 +297,60 @@
     .folder-card h3 { margin: 15px 0 auto; font-size: 17px; font-weight: 700; }
     .status { color: var(--muted); font-size: 9px; }
 
+    .week-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .week-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .week-count {
+      color: var(--muted);
+      font: 10px var(--mono);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .task-list {
+      list-style: none;
+      margin: 16px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    .task-item {
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+
+    .task-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .task-link::before {
+      content: "▸";
+      color: var(--coral);
+      font-size: 12px;
+    }
+
+    .task-link:hover {
+      text-decoration: underline;
+    }
+
     .arrow {
       color: var(--muted);
       font-size: 17px;
@@ -318,7 +388,7 @@
       .toolbar { align-items: flex-start; flex-direction: column; gap: 12px; }
       .search-wrap { width: 100%; }
       .folder-grid { grid-template-columns: 1fr; }
-      .folder-card { min-height: 135px; }
+      .folder-card, .week-panel { min-height: 135px; }
       .section-heading { flex-wrap: wrap; gap: 8px; }
       footer { flex-direction: column; }
     }
@@ -394,13 +464,14 @@
     const repoName = "web-programming-202537244-";
     const repoBranch = "main";
     const repoBaseUrl = `https://github.com/${repoOwner}/${repoName}`;
+    const repoSiteUrl = `https://aswin-wq.github.io/${repoName}/`;
 
     const fallbackFolders = {
       weekly: [
-        { name: "Week 01", url: `${repoBaseUrl}/tree/${repoBranch}/week1` },
-        { name: "Week 02", url: `${repoBaseUrl}/tree/${repoBranch}/week2` },
-        { name: "Week 03", url: `${repoBaseUrl}/tree/${repoBranch}/week3` },
-        { name: "Week 04", url: `${repoBaseUrl}/tree/${repoBranch}/week4` }
+        { name: "Week 01", path: "week1", url: `${repoBaseUrl}/tree/${repoBranch}/week1` },
+        { name: "Week 02", path: "week2", url: `${repoBaseUrl}/tree/${repoBranch}/week2` },
+        { name: "Week 03", path: "week3", url: `${repoBaseUrl}/tree/${repoBranch}/week3` },
+        { name: "Week 04", path: "week4", url: `${repoBaseUrl}/tree/${repoBranch}/week4` }
       ],
       other: []
     };
@@ -420,8 +491,17 @@
     function toFolderEntry(name) {
       return {
         name: formatFolderName(name),
+        path: name,
         url: `${repoBaseUrl}/tree/${repoBranch}/${encodeURIComponent(name)}`
       };
+    }
+
+    function buildTaskUrl(folderPath, fileName) {
+      return new URL(`${folderPath}/${fileName}`, repoSiteUrl).toString();
+    }
+
+    function getTaskName(fileName) {
+      return fileName.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
     }
 
     async function loadRepositoryFolders() {
@@ -443,7 +523,7 @@
         )].filter((name) => name && !name.startsWith(".") && name !== "node_modules");
 
         if (!topLevelFolders.length) {
-          return fallbackFolders;
+          return { ...fallbackFolders, tasksByFolder: {} };
         }
 
         const weekly = topLevelFolders
@@ -456,16 +536,93 @@
           .map(toFolderEntry)
           .sort(sortFolderNames);
 
-        return { weekly, other };
+        const tasksByFolder = {};
+        for (const folder of weekly) {
+          tasksByFolder[folder.path] = (data.tree || [])
+            .filter((entry) => entry.type === "blob" && entry.path.startsWith(`${folder.path}/`))
+            .map((entry) => {
+              const fileName = entry.path.split("/").pop();
+              return {
+                name: fileName,
+                label: getTaskName(fileName),
+                url: buildTaskUrl(folder.path, fileName)
+              };
+            })
+            .filter((task) => !task.name.includes("/") && !task.name.startsWith("."));
+        }
+
+        return { weekly, other, tasksByFolder };
       } catch (error) {
         console.warn("Falling back to static folder list:", error);
-        return fallbackFolders;
+        return { ...fallbackFolders, tasksByFolder: {} };
       }
     }
 
     function updateCount(allFolders) {
       const linkedCount = allFolders.filter((folder) => folder.url).length;
       document.querySelector("#linked-count").textContent = linkedCount;
+    }
+
+    function renderWeekPanels(weekly, tasksByFolder) {
+      const container = document.getElementById("weekly-folders");
+      container.replaceChildren(...weekly.map((folder) => {
+        const panel = document.createElement("article");
+        panel.className = "week-panel";
+        panel.dataset.search = `${folder.name} ${folder.path} ${(tasksByFolder[folder.path] || []).map((task) => task.label).join(" ")}`.toLowerCase();
+
+        const header = document.createElement("a");
+        header.className = "week-header";
+        header.href = folder.url;
+        header.target = "_blank";
+        header.rel = "noopener noreferrer";
+        header.setAttribute("aria-label", `${folder.name}, open this week folder`);
+
+        const icon = document.createElement("span");
+        icon.className = "folder-icon";
+        icon.setAttribute("aria-hidden", "true");
+
+        const titleWrap = document.createElement("div");
+        titleWrap.style.flex = "1";
+        const title = document.createElement("h3");
+        title.className = "week-title";
+        title.textContent = folder.name;
+        const count = document.createElement("span");
+        count.className = "week-count";
+        count.textContent = `${(tasksByFolder[folder.path] || []).length} tasks`;
+        titleWrap.append(title);
+        header.append(icon, titleWrap, count);
+
+        const taskList = document.createElement("ul");
+        taskList.className = "task-list";
+
+        const tasks = tasksByFolder[folder.path] || [];
+        if (!tasks.length) {
+          const emptyItem = document.createElement("li");
+          emptyItem.className = "task-item";
+          emptyItem.textContent = "No tasks yet";
+          emptyItem.style.color = "var(--muted)";
+          taskList.append(emptyItem);
+        } else {
+          for (const task of tasks) {
+            const item = document.createElement("li");
+            item.className = "task-item";
+
+            const link = document.createElement("a");
+            link.className = "task-link";
+            link.href = task.url;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.setAttribute("aria-label", `Open ${task.label}`);
+            link.textContent = task.label;
+
+            item.append(link);
+            taskList.append(item);
+          }
+        }
+
+        panel.append(header, taskList);
+        return panel;
+      }));
     }
 
     function renderFolders(folders, containerId, groupLabel) {
@@ -514,17 +671,17 @@
     }
 
     async function initFolders() {
-      const { weekly, other } = await loadRepositoryFolders();
+      const { weekly, other, tasksByFolder } = await loadRepositoryFolders();
       const allFolders = [...weekly, ...other];
 
-      renderFolders(weekly, "weekly-folders", "week");
+      renderWeekPanels(weekly, tasksByFolder);
       renderFolders(other, "other-folders", "folder");
       updateCount(allFolders);
 
       const searchInput = document.querySelector("#folder-search");
       searchInput.addEventListener("input", (event) => {
         const query = event.target.value.trim().toLowerCase();
-        const cards = [...document.querySelectorAll(".folder-card")];
+        const cards = [...document.querySelectorAll(".folder-card, .week-panel")];
         let visibleCards = 0;
 
         for (const card of cards) {
