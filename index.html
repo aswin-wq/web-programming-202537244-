@@ -468,10 +468,10 @@
 
     const fallbackFolders = {
       weekly: [
-        { name: "Week 01", path: "week1", url: `${repoBaseUrl}/tree/${repoBranch}/week1` },
-        { name: "Week 02", path: "week2", url: `${repoBaseUrl}/tree/${repoBranch}/week2` },
-        { name: "Week 03", path: "week3", url: `${repoBaseUrl}/tree/${repoBranch}/week3` },
-        { name: "Week 04", path: "week4", url: `${repoBaseUrl}/tree/${repoBranch}/week4` }
+        { name: "Week 01", path: "week1", url: `${repoBaseUrl}/tree/${repoBranch}/week1`, siteUrl: `${repoSiteUrl}week1/` },
+        { name: "Week 02", path: "week2", url: `${repoBaseUrl}/tree/${repoBranch}/week2`, siteUrl: `${repoSiteUrl}week2/` },
+        { name: "Week 03", path: "week3", url: `${repoBaseUrl}/tree/${repoBranch}/week3`, siteUrl: `${repoSiteUrl}week3/` },
+        { name: "Week 04", path: "week4", url: `${repoBaseUrl}/tree/${repoBranch}/week4`, siteUrl: `${repoSiteUrl}week4/` }
       ],
       other: []
     };
@@ -492,7 +492,8 @@
       return {
         name: formatFolderName(name),
         path: name,
-        url: `${repoBaseUrl}/tree/${repoBranch}/${encodeURIComponent(name)}`
+        url: `${repoBaseUrl}/tree/${repoBranch}/${encodeURIComponent(name)}`,
+        siteUrl: new URL(`${name}/`, repoSiteUrl).toString()
       };
     }
 
@@ -570,9 +571,12 @@
         panel.className = "week-panel";
         panel.dataset.search = `${folder.name} ${folder.path} ${(tasksByFolder[folder.path] || []).map((task) => task.label).join(" ")}`.toLowerCase();
 
+        const tasks = tasksByFolder[folder.path] || [];
+        const primaryTaskUrl = tasks[0]?.url || folder.siteUrl || folder.url;
+
         const header = document.createElement("a");
         header.className = "week-header";
-        header.href = folder.url;
+        header.href = primaryTaskUrl;
         header.target = "_blank";
         header.rel = "noopener noreferrer";
         header.setAttribute("aria-label", `${folder.name}, open this week folder`);
@@ -588,14 +592,13 @@
         title.textContent = folder.name;
         const count = document.createElement("span");
         count.className = "week-count";
-        count.textContent = `${(tasksByFolder[folder.path] || []).length} tasks`;
+        count.textContent = `${tasks.length} tasks`;
         titleWrap.append(title);
         header.append(icon, titleWrap, count);
 
         const taskList = document.createElement("ul");
         taskList.className = "task-list";
 
-        const tasks = tasksByFolder[folder.path] || [];
         if (!tasks.length) {
           const emptyItem = document.createElement("li");
           emptyItem.className = "task-item";
@@ -632,10 +635,10 @@
         card.className = `folder-card${folder.url ? "" : " is-unlinked"}`;
         card.dataset.search = `${folder.name} ${groupLabel}`.toLowerCase();
         if (folder.url) {
-          card.href = folder.url;
+          card.href = folder.siteUrl || folder.url;
           card.target = "_blank";
           card.rel = "noopener noreferrer";
-          card.setAttribute("aria-label", `${folder.name}, opens on GitHub in a new tab`);
+          card.setAttribute("aria-label", `${folder.name}, opens in a new tab`);
         }
 
         const top = document.createElement("div");
